@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <title>Creating Real-Time Charts with Flask</title>
     <!--suppress JSUnresolvedLibraryURL -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.1/css/bootstrap.min.css"
-          integrity="sha512-T584yQ/tdRR5QwOpfvDfVQUidzfgc2339Lc8uBDtcp/wYu80d7jwBgAxbyMh0a9YM9F8N3tdErpFI8iaGx6x5g=="
-          crossorigin="anonymous" referrerpolicy="no-referrer"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
+    rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+
     <!--suppress JSUnresolvedLibraryURL -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.css"
           integrity="sha512-/zs32ZEJh+/EO2N1b0PEdoA10JkdC3zJ8L5FTiQu82LR9S/rOQNfQN7U59U9BC12swNeRAz3HSzIL2vpp4fv3w=="
@@ -18,20 +18,29 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <canvas id="canvas"></canvas>
+                    <canvas id="canvas"></canvas>    
                 </div>
             </div>
         </div>
     </div>
 </div>
+<div class="container">
+<button id="start-watchdog" type="button" class="btn btn-secondary btn-lg"> Start </button>
+</div>
+<script>
+document.getElementById('start-watchdog').addEventListener('click', function() {
+    fetch('/start-watchdog', {method: 'POST'})
+    .then(response => response.json())
+    .then(data => console.log(data.message));
+});
+</script>
 <!--suppress JSUnresolvedLibraryURL -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
         integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!--suppress JSUnresolvedLibraryURL -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.1/js/bootstrap.bundle.min.js"
-        integrity="sha512-mULnawDVcCnsk9a4aG1QLZZ6rcce/jSzEGqUkeOLy0b6q0+T6syHrxlsAGH7ZVoqC93Pd0lBqd6WguPWih7VHA=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" 
+integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 <!--suppress JSUnresolvedLibraryURL -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"
         integrity="sha512-d9xgZrVZpmmQlfonhQUvTR7lMPtO7NkZMkA0ABN3PHCbKA5nqylQ/yWlFAyY6hYgdF1Qh6nYiuADWwKB4C2WSw=="
@@ -41,11 +50,11 @@
         const config = {
             type: 'line',
             data: {
-                labels: Array(30).fill("0000-00-00 00:00:00"),
+                labels: Array(30).fill("00:00:00"),
                 datasets: [{
-                    label: "Random Dataset",
-                    backgroundColor: 'rgb(255, 99, 132)',
-                    borderColor: 'rgb(255, 99, 132)',
+                    label: "THC (wt-%)",
+                    backgroundColor: '#1565C0',
+                    borderColor: '#1565C0',
                     data: Array(30).fill(null),
                     fill: false,
                 }],
@@ -54,7 +63,7 @@
                 responsive: true,
                 title: {
                     display: true,
-                    text: 'Creating Real-Time Charts with Flask'
+                    text: 'Remediation Progress'
                 },
                 tooltips: {
                     mode: 'index',
@@ -76,19 +85,41 @@
                         display: true,
                         scaleLabel: {
                             display: true,
-                            labelString: 'Value'
+                            labelString: 'THC Concentration (wt-%)'
                         }
                     }]
-                }
+                },
+                plugins: {
+                    customCanvasBackgroundColor: {
+                      color: '#99ffff',
+                    }
+                  }
+                  
+
             }
+            //plugins: [plugin]
         };
 
         const context = document.getElementById('canvas').getContext('2d');
 
         const lineChart = new Chart(context, config);
 
+        const plugin = {
+            id: 'customCanvasBackgroundColor',
+            beforeDraw: (chart, args, options) => {
+              const {ctx} = chart;
+              ctx.save();
+              ctx.globalCompositeOperation = 'destination-over';
+              ctx.fillStyle = options.color || '#99ffff';
+              ctx.fillRect(0, 0, chart.width, chart.height);
+              ctx.restore();
+            }
+          };
+
         const source = new EventSource("/chart-data");
 
+        // Note: changes to the plugin code is not reflected to the chart, because the plugin is loaded at chart construction time and editor changes only trigger an chart.update().
+        
         source.onmessage = function (event) {
             const data = JSON.parse(event.data);
             if (config.data.labels.length === 30) {
@@ -96,6 +127,7 @@
                 config.data.datasets[0].data.shift();
             }
             config.data.labels.push(data.time);
+            console.log(data.value);
             config.data.datasets[0].data.push(data.value);
             lineChart.update();
         }
